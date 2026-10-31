@@ -35,8 +35,10 @@ export default function App(){
   const [name,setName]=useState('Untitled document')
   const [busy,setBusy]=useState(false)
   const [saved,setSaved]=useState(true)
-  const [grid,setGrid]=useState(true)
   const [snap,setSnap]=useState(true)
+  const snapRef=useRef(true)
+  const guides=useRef<{x:number|null;y:number|null}>({x:null,y:null})
+  useEffect(()=>{snapRef.current=snap},[snap])
   const [search,setSearch]=useState('')
   const [mask,setMask]=useState<'none'|'circle'|'rounded'>('none')
   const [cropMode,setCropMode]=useState(false)
@@ -89,10 +91,39 @@ export default function App(){
     const changed=()=>{if(!restoring.current){snapshot();refreshLayers()}}
     c.on('object:modified',changed);c.on('text:changed',changed);c.on('object:added',changed);c.on('object:removed',changed);c.on('path:created',changed)
     c.on('object:moving',e=>{
-      if(!snap||!e.target)return
-      const step=10
-      e.target.set({left:Math.round((e.target.left||0)/step)*step,top:Math.round((e.target.top||0)/step)*step})
+      const target=e.target as any
+      guides.current={x:null,y:null}
+      if(!snapRef.current||!target)return
+      const threshold=8/(c.getZoom()||1)
+      const bounds=target.getBoundingRect()
+      const others=c.getObjects().filter(o=>o!==target&&o.visible!==false)
+      const xTargets=[{value:0,guide:0},{value:W/2,guide:W/2},{value:W,guide:W}]
+      const yTargets=[{value:0,guide:0},{value:H/2,guide:H/2},{value:H,guide:H}]
+      for(const obj of others){
+        const b=obj.getBoundingRect()
+        xTargets.push({value:b.left,guide:b.left},{value:b.left+b.width/2,guide:b.left+b.width/2},{value:b.left+b.width,guide:b.left+b.width})
+        yTargets.push({value:b.top,guide:b.top},{value:b.top+b.height/2,guide:b.top+b.height/2},{value:b.top+b.height,guide:b.top+b.height})
+      }
+      const xPoints=[bounds.left,bounds.left+bounds.width/2,bounds.left+bounds.width]
+      const yPoints=[bounds.top,bounds.top+bounds.height/2,bounds.top+bounds.height]
+      let bestX:{delta:number;guide:number}|null=null
+      let bestY:{delta:number;guide:number}|null=null
+      for(const p of xPoints)for(const t of xTargets){const delta=t.value-p;if(Math.abs(delta)<=threshold&&(!bestX||Math.abs(delta)<Math.abs(bestX.delta)))bestX={delta,guide:t.guide}}
+      for(const p of yPoints)for(const t of yTargets){const delta=t.value-p;if(Math.abs(delta)<=threshold&&(!bestY||Math.abs(delta)<Math.abs(bestY.delta)))bestY={delta,guide:t.guide}}
+      if(bestX){target.set('left',(target.left||0)+bestX.delta);guides.current.x=bestX.guide}
+      if(bestY){target.set('top',(target.top||0)+bestY.delta);guides.current.y=bestY.guide}
+      target.setCoords()
     })
+    c.on('after:render',()=>{
+      const g=guides.current,ctx=c.contextTop
+      if((g.x===null&&g.y===null)||!ctx)return
+      const z=c.getZoom()||1
+      ctx.save();ctx.setTransform(z,0,0,z,0,0);ctx.strokeStyle='#3b82f6';ctx.lineWidth=1/z;ctx.setLineDash([4/z,4/z])
+      if(g.x!==null){ctx.beginPath();ctx.moveTo(g.x,0);ctx.lineTo(g.x,H);ctx.stroke()}
+      if(g.y!==null){ctx.beginPath();ctx.moveTo(0,g.y);ctx.lineTo(W,g.y);ctx.stroke()}
+      ctx.restore()
+    })
+    c.on('mouse:up',()=>{guides.current={x:null,y:null};c.requestRenderAll()})
     return()=>{c.dispose();editor.current=null}
   // Page changes intentionally rebuild the Fabric canvas.
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -201,14 +232,14 @@ export default function App(){
         <nav className="side-tabs">{(['Templates','Elements','Text','Uploads'] as Tab[]).map((t,i)=><button key={t} className={tab===t?'side-tab active':'side-tab'} onClick={()=>setTab(t)}>{[<LayoutTemplate/>,<Shapes/>,<Type/>,<Upload/>][i]}<span>{t}</span></button>)}</nav>
         <div className="sidebar-content">
           {tab==='Templates'&&<div className="tab-content"><div className="sidebar-title">Page layouts</div><p className="helper">Start with a simple page structure.</p>{['Blank page','Editorial title','Two-column layout','Image with caption','Simple report'].map((t,i)=><button className="template-row" key={t} onClick={()=>{if(i===0)return;addText(i===1?'title':'heading');if(i===3)addShape('rect')}}><span className={'template-preview preview-'+i}><i/><i/><i/></span><span>{t}</span></button>)}</div>}
-          {tab==='Elements'&&<div className="tab-content"><div className="sidebar-title">Basic elements</div><div className="element-grid"><button onClick={()=>addShape('rect')}><Square/><span>Rectangle</span></button><button onClick={()=>addShape('circle')}><CircleIcon/><span>Circle</span></button><button onClick={()=>addShape('line')}><Minus/><span>Line</span></button><button onClick={()=>addShape('triangle')}><TriangleIcon/><span>Triangle</span></button></div><div className="sidebar-title section-gap">Layout</div><label className="setting-row"><span>Show grid</span><input type="checkbox" checked={grid} onChange={e=>setGrid(e.target.checked)}/></label><label className="setting-row"><span>Snap to grid</span><input type="checkbox" checked={snap} onChange={e=>setSnap(e.target.checked)}/></label><p className="helper">Grid is a visual guide and will not appear in exported files.</p></div>}
+          {tab==='Elements'&&<div className="tab-content"><div className="sidebar-title">Basic elements</div><div className="element-grid"><button onClick={()=>addShape('rect')}><Square/><span>Rectangle</span></button><button onClick={()=>addShape('circle')}><CircleIcon/><span>Circle</span></button><button onClick={()=>addShape('line')}><Minus/><span>Line</span></button><button onClick={()=>addShape('triangle')}><TriangleIcon/><span>Triangle</span></button></div><div className="sidebar-title section-gap">Alignment</div><label className="setting-row"><span>Snap to alignment</span><input type="checkbox" checked={snap} onChange={e=>setSnap(e.target.checked)}/></label><p className="helper">Objects snap to page edges, the page center and nearby object edges or centers. Blue guides appear while aligning.</p></div>}
           {tab==='Text'&&<div className="tab-content"><div className="sidebar-title">Add text</div><button className="text-preset title-preset" onClick={()=>addText('title')}>Add a title</button><button className="text-preset heading-preset" onClick={()=>addText('heading')}>Add a heading</button><button className="text-preset body-preset" onClick={()=>addText('body')}>Add body text</button><button className="text-preset caption-preset" onClick={()=>addText('caption')}>Add a caption</button><div className="sidebar-note">Text boxes support paragraphs, automatic wrapping and line breaks. Double-click to edit.</div></div>}
           {tab==='Uploads'&&<div className="tab-content"><div className="sidebar-title">Your uploads</div><button className="upload-drop" onClick={()=>fileRef.current?.click()}><ImagePlus size={22}/><strong>Upload files</strong><span>Choose images from this device</span></button><input ref={fileRef} hidden type="file" accept="image/*" onChange={e=>{void addImage(e.target.files?.[0]);e.currentTarget.value=''}}/><p className="helper">Images are kept in this browser project.</p></div>}
         </div>
         <div className="sidebar-bottom"><span className="local-dot"/> Saved locally on this device</div>
       </aside>
       <section className="stage">
-        <div className="stage-toolbar"><div className="crumb">Page {active+1}<span>/</span> A4 · Portrait</div><div className="stage-tools"><button className={grid?'tool-toggle on':'tool-toggle'} onClick={()=>setGrid(v=>!v)} title="Toggle grid"><Grid3X3 size={15}/></button><span className="toolbar-divider"/><button className="small-tool" onClick={()=>setZoom(z=>Math.max(25,z-10))}><Minus size={14}/></button><span className="zoom-value">{zoom}%</span><button className="small-tool" onClick={()=>setZoom(z=>Math.min(150,z+10))}><Plus size={14}/></button></div></div>
+        <div className="stage-toolbar"><div className="crumb">Page {active+1}<span>/</span> A4 · Portrait</div><div className="stage-tools"><button className={snap?'tool-toggle on':'tool-toggle'} onClick={()=>setSnap(v=>!v)} title="Toggle alignment snapping"><MousePointer2 size={15}/></button><span className="toolbar-divider"/><button className="small-tool" onClick={()=>setZoom(z=>Math.max(25,z-10))}><Minus size={14}/></button><span className="zoom-value">{zoom}%</span><button className="small-tool" onClick={()=>setZoom(z=>Math.min(150,z+10))}><Plus size={14}/></button></div></div>
         <div className="canvas-scroll"><div className={grid?'canvas-wrap grid-on':'canvas-wrap'} style={{width:W*zoom/100,height:H*zoom/100}}><canvas ref={canvasEl}/></div></div>
         <div className="stage-footer"><span>{selected?'Element selected':'Select an element to edit'}</span><span>{W} × {H} px</span></div>
       </section>
