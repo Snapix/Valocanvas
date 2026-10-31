@@ -62,7 +62,7 @@ export default function App(){
     historyIndex.current=index
     await c.loadFromJSON(JSON.parse(history.current[index]))
     c.requestRenderAll();setSelected(c.getActiveObject()||null);refreshLayers()
-    setPages(prev=>prev.map((p,i)=>i===active?{...p,json:c.toJSON(['__layerId','__layerName'])}:p))
+    setPages(prev=>prev.map((p,i)=>i===active?{...p,json:c.toJSON()}:p))
     restoring.current=false;setSaved(false)
   },[active,refreshLayers])
   const undo=()=>{if(historyIndex.current>0)void restore(historyIndex.current-1)}
@@ -75,7 +75,7 @@ export default function App(){
     const page=pages[active]
     const init=async()=>{
       if(page.json)await c.loadFromJSON(page.json)
-      history.current=[JSON.stringify(c.toJSON(['__layerId','__layerName']))]
+      history.current=[JSON.stringify(c.toJSON())]
       historyIndex.current=0;c.requestRenderAll();refreshLayers()
     }
     void init()
@@ -129,9 +129,9 @@ export default function App(){
   }
   const updateText=(key:string,value:any)=>update(key,value)
   const deleteSelected=()=>{const c=editor.current,o=c?.getActiveObject();if(!c||!o)return;c.remove(o);c.discardActiveObject();setSelected(null);c.requestRenderAll();snapshot(true)}
-  const changePage=(i:number)=>{const c=editor.current;if(c)setPages(prev=>prev.map((p,n)=>n===active?{...p,json:c.toJSON(['__layerId','__layerName'])}:p));setActive(i);setSelected(null)}
-  const addPage=()=>{const c=editor.current;if(c)setPages(prev=>prev.map((p,i)=>i===active?{...p,json:c.toJSON(['__layerId','__layerName'])}:p));const next=Math.max(...pages.map(p=>p.id))+1;setPages(p=>[...p,makePage(next)]);setActive(pages.length)}
-  const duplicatePage=()=>{const c=editor.current;if(!c)return;const copy={...pages[active],id:Date.now(),json:c.toJSON(['__layerId','__layerName'])};setPages(p=>[...p.slice(0,active+1),copy,...p.slice(active+1)]);setActive(active+1)}
+  const changePage=(i:number)=>{const c=editor.current;if(c)setPages(prev=>prev.map((p,n)=>n===active?{...p,json:c.toJSON()}:p));setActive(i);setSelected(null)}
+  const addPage=()=>{const c=editor.current;if(c)setPages(prev=>prev.map((p,i)=>i===active?{...p,json:c.toJSON()}:p));const next=Math.max(...pages.map(p=>p.id))+1;setPages(p=>[...p,makePage(next)]);setActive(pages.length)}
+  const duplicatePage=()=>{const c=editor.current;if(!c)return;const copy={...pages[active],id:Date.now(),json:c.toJSON()};setPages(p=>[...p.slice(0,active+1),copy,...p.slice(active+1)]);setActive(active+1)}
   const deletePage=(i:number)=>{if(pages.length===1)return;setPages(p=>p.filter((_,n)=>n!==i));setActive(Math.max(0,i===active?i-1:i>active?active:active-1))}
   const selectLayer=(id:string)=>{const c=editor.current;if(!c)return;const obj=c.getObjects().find((o:any)=>o.__layerId===id);if(obj){c.setActiveObject(obj);c.requestRenderAll();setSelected(obj)}}
   const toggleLayer=(id:string,key:'visible'|'locked')=>{const c=editor.current;if(!c)return;const obj=c.getObjects().find((o:any)=>o.__layerId===id) as any;if(!obj)return;if(key==='visible')obj.set('visible',!obj.visible);else obj.set({selectable:obj.selectable===false,evented:obj.evented===false});c.requestRenderAll();refreshLayers();snapshot(true)}
@@ -155,7 +155,7 @@ export default function App(){
     try{
       const doc=await PDFDocument.create()
       for(let i=0;i<pages.length;i++){
-        const json=i===active?c.toJSON(['__layerId','__layerName']):pages[i].json
+        const json=i===active?c.toJSON():pages[i].json
         const tempEl=document.createElement('canvas')
         const temp=new Canvas(tempEl,{width:W,height:H,backgroundColor:'#ffffff'})
         if(json)await temp.loadFromJSON(json)
