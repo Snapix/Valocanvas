@@ -96,7 +96,7 @@ export default function App() {
     finally{setBusy(false)}
   }
   const removeSelected=()=>{const c=editor.current;const o=c?.getActiveObject();if(o){c?.remove(o);c?.discardActiveObject();c?.requestRenderAll();setSelected(null);persistPage()}}
-  const undoAction=()=>{const c=editor.current;if(!c)return; c.undo?.();c.requestRenderAll()}
+  const undoAction=()=>{const c=editor.current;if(!c)return; (c as any).undo?.();c.requestRenderAll() }
   return <div className="app">
     <header className="topbar">
       <div className="brand"><span className="brand-mark">V</span><span>valo<span className="brand-light">canvas</span></span></div>
