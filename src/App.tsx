@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Canvas, FabricImage, Textbox, Rect, Circle, Line, Triangle as FabricTriangle, filters } from 'fabric'
+import { Canvas, FabricImage, Textbox, Rect, Circle, Line, Triangle as FabricTriangle, FabricObject, filters } from 'fabric'
 import { PDFDocument } from 'pdf-lib'
 import {
   AlignCenter, AlignLeft, AlignRight, ArrowDownToLine, Bold, BringToFront, ChevronDown,
@@ -13,6 +13,7 @@ import {
 type Page = { id:number; json:any; background:string }
 type Tab = 'Templates'|'Elements'|'Text'|'Uploads'
 type LayerItem = { id:string; label:string; type:string; visible:boolean; locked:boolean }
+FabricObject.customProperties = ['__layerId','__layerName']
 const W=794, H=1123
 const makePage=(id:number):Page=>({id,json:null,background:'#ffffff'})
 const fonts=['Arial','Helvetica','Georgia','Times New Roman','Verdana','Trebuchet MS','Courier New','Impact','Palatino Linotype','Tahoma']
@@ -67,6 +68,7 @@ export default function App(){
   },[active,refreshLayers])
   const undo=()=>{if(historyIndex.current>0)void restore(historyIndex.current-1)}
   const redo=()=>{if(historyIndex.current<history.current.length-1)void restore(historyIndex.current+1)}
+  useEffect(()=>{const onKey=(e:KeyboardEvent)=>{if(!(e.ctrlKey||e.metaKey))return;const key=e.key.toLowerCase();if(key==='z'){e.preventDefault();if(e.shiftKey)redo();else undo()}else if(key==='y'){e.preventDefault();redo()}};window.addEventListener('keydown',onKey);return()=>window.removeEventListener('keydown',onKey)},[active])
 
   useEffect(()=>{
     if(!canvasEl.current)return
@@ -74,7 +76,9 @@ export default function App(){
     editor.current=c
     const page=pages[active]
     const init=async()=>{
+      restoring.current=true
       if(page.json)await c.loadFromJSON(page.json)
+      restoring.current=false
       history.current=[JSON.stringify(c.toJSON())]
       historyIndex.current=0;c.requestRenderAll();refreshLayers()
     }
