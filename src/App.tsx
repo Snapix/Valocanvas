@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Canvas, FabricImage, Textbox, Rect, Circle, Line, Triangle, filters } from 'fabric'
+import { Canvas, FabricImage, Textbox, Rect, Circle, Line, Triangle as FabricTriangle, filters } from 'fabric'
 import { PDFDocument } from 'pdf-lib'
 import {
   AlignCenter, AlignLeft, AlignRight, ArrowDownToLine, Bold, BringToFront, ChevronDown,
   Circle as CircleIcon, Copy, Eye, EyeOff, FlipHorizontal, FlipVertical, ImagePlus,
   Italic, Layers, Lock, Minus, MousePointer2, Plus, Redo2, RotateCcw, Save,
   Scissors, SendToBack, Shapes, Square, Trash2, Type, Underline, Undo2, Upload,
-  X, Grid3X3, Crop, Sun, Contrast, Droplets, Search, FileText, LayoutTemplate,
+  X, Grid3X3, Crop, Sun, Contrast, Droplets, Search, FileText, LayoutTemplate, Triangle as TriangleIcon,
   PanelLeftClose, MoreHorizontal
 } from 'lucide-react'
 
@@ -46,7 +46,7 @@ export default function App(){
   },[])
   const snapshot=useCallback((force=false)=>{
     const c=editor.current;if(!c||restoring.current)return
-    const json=c.toJSON(['__layerId','__layerName'])
+    const json=c.toJSON()
     const encoded=JSON.stringify(json)
     if(!force&&history.current[historyIndex.current]===encoded)return
     history.current=history.current.slice(0,historyIndex.current+1)
@@ -97,7 +97,7 @@ export default function App(){
   useEffect(()=>{const raw=localStorage.getItem('valocanvas-project');if(!raw)return;try{const d=JSON.parse(raw);if(d.pages?.length){setName(d.name||'Untitled document');setPages(d.pages);setActive(d.active||0)}}catch{}},[])
   const save=useCallback(()=>{
     const c=editor.current
-    const snapshotPages=pages.map((p,i)=>i===active?{...p,json:c?.toJSON(['__layerId','__layerName'])}:p)
+    const snapshotPages=pages.map((p,i)=>i===active?{...p,json:c?.toJSON()}:p)
     localStorage.setItem('valocanvas-project',JSON.stringify({name,pages:snapshotPages,active}))
     setPages(snapshotPages);setSaved(true)
   },[pages,active,name])
@@ -113,7 +113,7 @@ export default function App(){
   const addShape=(kind:'rect'|'circle'|'line'|'triangle')=>{
     const c=editor.current;if(!c)return
     const base={left:130,top:180,fill:'#e9e9e7',stroke:'#222222',strokeWidth:1}
-    const obj=kind==='rect'?new Rect({...base,width:220,height:130}):kind==='circle'?new Circle({...base,radius:70}):kind==='triangle'?new Triangle({...base,width:150,height:130}):new Line([100,100,420,100],{stroke:'#222222',strokeWidth:2})
+    const obj=kind==='rect'?new Rect({...base,width:220,height:130}):kind==='circle'?new Circle({...base,radius:70}):kind==='triangle'?new FabricTriangle({...base,width:150,height:130}):new Line([100,100,420,100],{stroke:'#222222',strokeWidth:2})
     ;(obj as any).__layerName=kind[0].toUpperCase()+kind.slice(1)
     c.add(obj);c.setActiveObject(obj);c.requestRenderAll();snapshot(true)
   }
@@ -190,7 +190,7 @@ export default function App(){
         <nav className="side-tabs">{(['Templates','Elements','Text','Uploads'] as Tab[]).map((t,i)=><button key={t} className={tab===t?'side-tab active':'side-tab'} onClick={()=>setTab(t)}>{[<LayoutTemplate/>,<Shapes/>,<Type/>,<Upload/>][i]}<span>{t}</span></button>)}</nav>
         <div className="sidebar-content">
           {tab==='Templates'&&<div className="tab-content"><div className="sidebar-title">Page layouts</div><p className="helper">Start with a simple page structure.</p>{['Blank page','Editorial title','Two-column layout','Image with caption','Simple report'].map((t,i)=><button className="template-row" key={t} onClick={()=>{if(i===0)return;addText(i===1?'title':'heading');if(i===3)addShape('rect')}}><span className={'template-preview preview-'+i}><i/><i/><i/></span><span>{t}</span></button>)}</div>}
-          {tab==='Elements'&&<div className="tab-content"><div className="sidebar-title">Basic elements</div><div className="element-grid"><button onClick={()=>addShape('rect')}><Square/><span>Rectangle</span></button><button onClick={()=>addShape('circle')}><CircleIcon/><span>Circle</span></button><button onClick={()=>addShape('line')}><Minus/><span>Line</span></button><button onClick={()=>addShape('triangle')}><Triangle/><span>Triangle</span></button></div><div className="sidebar-title section-gap">Layout</div><label className="setting-row"><span>Show grid</span><input type="checkbox" checked={grid} onChange={e=>setGrid(e.target.checked)}/></label><label className="setting-row"><span>Snap to grid</span><input type="checkbox" checked={snap} onChange={e=>setSnap(e.target.checked)}/></label><p className="helper">Grid is a visual guide and will not appear in exported files.</p></div>}
+          {tab==='Elements'&&<div className="tab-content"><div className="sidebar-title">Basic elements</div><div className="element-grid"><button onClick={()=>addShape('rect')}><Square/><span>Rectangle</span></button><button onClick={()=>addShape('circle')}><CircleIcon/><span>Circle</span></button><button onClick={()=>addShape('line')}><Minus/><span>Line</span></button><button onClick={()=>addShape('triangle')}><TriangleIcon/><span>Triangle</span></button></div><div className="sidebar-title section-gap">Layout</div><label className="setting-row"><span>Show grid</span><input type="checkbox" checked={grid} onChange={e=>setGrid(e.target.checked)}/></label><label className="setting-row"><span>Snap to grid</span><input type="checkbox" checked={snap} onChange={e=>setSnap(e.target.checked)}/></label><p className="helper">Grid is a visual guide and will not appear in exported files.</p></div>}
           {tab==='Text'&&<div className="tab-content"><div className="sidebar-title">Add text</div><button className="text-preset title-preset" onClick={()=>addText('title')}>Add a title</button><button className="text-preset heading-preset" onClick={()=>addText('heading')}>Add a heading</button><button className="text-preset body-preset" onClick={()=>addText('body')}>Add body text</button><button className="text-preset caption-preset" onClick={()=>addText('caption')}>Add a caption</button><div className="sidebar-note">Text boxes support paragraphs, automatic wrapping and line breaks. Double-click to edit.</div></div>}
           {tab==='Uploads'&&<div className="tab-content"><div className="sidebar-title">Your uploads</div><button className="upload-drop" onClick={()=>fileRef.current?.click()}><ImagePlus size={22}/><strong>Upload files</strong><span>Choose images from this device</span></button><input ref={fileRef} hidden type="file" accept="image/*" onChange={e=>{void addImage(e.target.files?.[0]);e.currentTarget.value=''}}/><p className="helper">Images are kept in this browser project.</p></div>}
         </div>
